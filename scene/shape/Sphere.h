@@ -21,7 +21,7 @@ struct Sphere : public Object {
       r2 = radius * radius;
   }
 
-  bool getIntersection(const Ray& ray, IntersectionInfo* I) const override {
+  bool getIntersection(const _Ray& ray, IntersectionInfo* I) const override {
     Eigen::Vector3f s = center - ray.o;
     float sd = s.dot(ray.d);
     float ss = s.dot(s);

@@ -32,7 +32,7 @@ Mesh::~Mesh()
     delete[] _triangles;
 }
 
-bool Mesh::getIntersection(const Ray &ray, IntersectionInfo *intersection) const
+bool Mesh::getIntersection(const _Ray &ray, IntersectionInfo *intersection) const
 {
     IntersectionInfo i;
     bool col = _meshBvh->getIntersection(ray, &i, false);

@@ -1,8 +1,23 @@
-#ifndef TRIANGLE_H
+﻿#ifndef TRIANGLE_H
 #define TRIANGLE_H
 
 #include <BVH/Object.h>
 #include <util/tiny_obj_loader.h>
+#include "../../glm_fix.hxx"
+
+struct MaterialType {
+    using BSDFSignature = auto(const glm::vec3&, const glm::vec3&, const glm::vec3&)->glm::vec3;
+    using ƎBSDF = std::function<BSDFSignature>;
+
+    using SamplerSignature = auto(const glm::vec3&, const glm::vec3&)->std::tuple<glm::vec3, double>;
+    using ƎSampler = std::function<SamplerSignature>;
+
+    glm::vec3 EmissiveIntensity;
+    bool IsDielectric = false;
+
+    mutable ƎBSDF BSDF = {};
+    mutable ƎSampler Sampler = {};
+};
 
 class Triangle : public Object
 {
@@ -13,7 +28,9 @@ public:
              Eigen::Vector3f n1, Eigen::Vector3f n2, Eigen::Vector3f n3,
              int index);
 
-    bool getIntersection(const Ray &ray, IntersectionInfo *intersection) const override;
+    MaterialType Material = {};
+
+    bool getIntersection(const _Ray &ray, IntersectionInfo *intersection) const override;
 
     Eigen::Vector3f getNormal(const IntersectionInfo &I) const override;
     virtual Eigen::Vector3f getNormal(const Eigen::Vector3f &p) const;

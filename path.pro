@@ -1,7 +1,8 @@
 QT += gui
 QT += xml
 
-CONFIG += c++11 console
+QMAKE_CXXFLAGS += -std=c++20 -O3
+CONFIG += c++20 console
 CONFIG -= app_bundle
 
 # The following define makes your compiler emit warnings if you use

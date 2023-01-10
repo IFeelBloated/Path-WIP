@@ -15,7 +15,7 @@ struct BBox {
   void setMinMax(const Eigen::Vector3f& min, const Eigen::Vector3f& max);
   void setP(const Eigen::Vector3f& min);
 
-  bool intersect(const Ray& ray, float *tnear, float *tfar) const;
+  bool intersect(const _Ray& ray, float *tnear, float *tfar) const;
   void expandToInclude(const Eigen::Vector3f& p);
   void expandToInclude(const BBox& b);
   uint32_t maxDimension() const;

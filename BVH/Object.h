@@ -16,7 +16,7 @@ struct Object {
     virtual ~Object(){}
   //! All "Objects" must be able to test for intersections with rays.
   virtual bool getIntersection(
-      const Ray& ray,
+      const _Ray& ray,
       IntersectionInfo* intersection)
     const = 0;
 

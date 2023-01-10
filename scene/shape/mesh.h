@@ -31,7 +31,7 @@ public:
          const std::vector<int> &materialIds,
          const std::vector<tinyobj::material_t> &materials);
 
-    bool getIntersection(const Ray &ray, IntersectionInfo *intersection) const override;
+    bool getIntersection(const _Ray &ray, IntersectionInfo *intersection) const override;
 
     Eigen::Vector3f getNormal(const IntersectionInfo &I) const override;
 

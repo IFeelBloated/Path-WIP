@@ -1,6 +1,8 @@
-#include "triangle.h"
+﻿#include "triangle.h"
 
 #include "util/CS123Common.h"
+
+#include "../../Ray.hxx"
 
 using namespace Eigen;
 
@@ -17,7 +19,7 @@ Triangle::Triangle(Vector3f v1, Vector3f v2, Vector3f v3, Vector3f n1, Vector3f 
     _bbox.expandToInclude(_v3);
 }
 
-bool Triangle::getIntersection(const Ray &ray, IntersectionInfo *intersection) const
+bool Triangle::getIntersection(const _Ray &ray, IntersectionInfo *intersection) const
 {
     //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
     Vector3f edge1, edge2, h, s, q;
@@ -106,4 +108,49 @@ tinyobj::material_t Triangle::getMaterial() const
 void Triangle::setMaterial(const tinyobj::material_t &material)
 {
     m_material = material;
+
+    auto cSpecular = glm::vec3{ material.specular[0], material.specular[1], material.specular[2] };
+    auto cTransmittance = glm::vec3{ material.transmittance[0], material.transmittance[1], material.transmittance[2] };
+    auto cDiffuse = glm::vec3{ material.diffuse[0], material.diffuse[1], material.diffuse[2] };
+
+    Material.EmissiveIntensity = { material.emission[0], material.emission[1], material.emission[2] };
+
+    if (material.illum == 5) {
+        Material.BSDF = BSDFs::δ(cSpecular);
+        Material.Sampler = Samplers::δ::Reflective;
+    }
+    else if (material.illum == 7) {
+        Material.IsDielectric = true;
+        Material.BSDF = BSDFs::δ(cSpecular, cTransmittance);
+        Material.Sampler = Samplers::δ::Dielectric(static_cast<double>(material.ior));
+    }
+    else if (material.illum == 8) {
+        Material.IsDielectric = true;
+        Material.BSDF = BSDFs::δ(cSpecular, cTransmittance);
+        Material.Sampler = Samplers::δ::Dielectric(static_cast<double>(material.ior), static_cast<double>(material.shininess));
+    }
+    else if (glm::length(cSpecular) < 1e-4) {
+        Material.BSDF = BSDFs::Diffuse(cDiffuse);
+        Material.Sampler = Samplers::Hemispherical::DiffuseImportance;
+    }
+    else if (glm::length(cDiffuse) < 1e-4) {
+        Material.BSDF = BSDFs::Specular(cSpecular, static_cast<double>(material.shininess));
+        Material.Sampler = Samplers::Hemispherical::SpecularImportance(static_cast<double>(material.shininess));
+    }
+    else {
+        Material.BSDF = BSDFs::Phong(cDiffuse, cSpecular, static_cast<double>(material.shininess));
+        Material.Sampler = Samplers::Hemispherical::PhongMultipleImportance(static_cast<double>(material.shininess));
+    }
+
+
+
+
+
+
+
+    
+
+
+
+
 }

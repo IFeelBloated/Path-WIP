@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
       float fov = .5f / tanf( 70.f * 3.14159265*.5f / 180.f);
 
       // This is only valid for square aspect ratio images
-      Ray ray(camera_position, normalize(u*camera_u + v*camera_v + fov*camera_dir));
+      _Ray ray(camera_position, normalize(u*camera_u + v*camera_v + fov*camera_dir));
 
       IntersectionInfo I;
       bool hit = bvh.getIntersection(ray, &I, false);

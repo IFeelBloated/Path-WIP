@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-using namespace Eigen;
+using Eigen::Vector3f;
 
 void BBox::setMinMax(const Vector3f& min, const Vector3f& max)
 {
@@ -58,7 +58,7 @@ static const float flt_plus_inf = -logf(0);	// let's keep C and C++ compilers ha
 static const float __attribute__((aligned(16)))
 ps_cst_plus_inf[4] = {  flt_plus_inf,  flt_plus_inf,  flt_plus_inf,  flt_plus_inf },
 ps_cst_minus_inf[4] = { -flt_plus_inf, -flt_plus_inf, -flt_plus_inf, -flt_plus_inf };
-bool BBox::intersect(const Ray& ray, float *tnear, float *tfar) const {
+bool BBox::intersect(const _Ray& ray, float *tnear, float *tfar) const {
     Vector3 _min(min(0), min(1), min(2));
     Vector3 _max(max(0), max(1), max(2));
     Vector3 _o(ray.o(0), ray.o(1), ray.o(2));
