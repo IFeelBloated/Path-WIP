@@ -8,15 +8,37 @@ namespace Samplers {
 	constexpr auto InvalidDensity = -std::numeric_limits<double>::infinity();
 }
 
-namespace Samplers::InternalState {
+namespace Samplers::Utilities {
 	inline auto Seeder = std::random_device{};
 	inline auto SequenceGenerator = std::mt19937{ Seeder() };
+
+	auto PolarToCartesian(auto Radius, auto θ) { return std::array{ Radius * std::cos(θ), Radius * std::sin(θ) }; }
 }
 
 namespace Samplers::Standard {
 	auto Uniform(auto LowerBound, auto UpperBound) {
 		return [=, Sampler = std::uniform_real_distribution{ LowerBound, UpperBound }] mutable {
-			return Sampler(InternalState::SequenceGenerator);
+			return Sampler(Utilities::SequenceGenerator);
+		};
+	}
+	auto Normal(auto µ, auto σ) {
+		return [=, Sampler = std::normal_distribution{ µ, σ }] mutable {
+			return Sampler(Utilities::SequenceGenerator);
+		};
+	}
+}
+
+namespace Samplers::Planar {
+	auto UniformDisk(auto Radius) {
+		return [=, MagnitudeSampler = Standard::Uniform(0., 1.), θSampler = Standard::Uniform(0., 1.)] mutable {
+			auto [Displacement, θ] = std::tuple{ Radius * std::sqrt(MagnitudeSampler()), 2 * std::numbers::pi * θSampler() };
+			return Utilities::PolarToCartesian(Displacement, θ);
+		};
+	}
+	auto Gaussian(auto σ) {
+		return [=, xSampler = Standard::Normal(0., σ), ySampler = Standard::Normal(0., σ)] mutable {
+			auto [x, y] = std::tuple{ xSampler(), ySampler() };
+			return std::tuple{ x, y, std::exp(-(x * x + y * y) / (2 * σ * σ)) };
 		};
 	}
 }
@@ -30,10 +52,9 @@ namespace Samplers::Hemispherical::PDFs {
 namespace Samplers::Hemispherical {
 	auto CosineWeighted(auto&& AxisGenerator, auto Concentration) { // might produce invalid ωi samples if the axis is not the surface normal
 		return [=, φSampler = Standard::Uniform(0., 1.), θSampler = Standard::Uniform(0., 1.)](auto&& ...Arguments) mutable {
-			auto PolarToCartesian = [](auto Radius, auto θ) { return std::array{ Radius * std::cos(θ), Radius * std::sin(θ) }; };
 			auto [φ, cosθ] = std::array{ 2 * std::numbers::pi * φSampler(), std::pow(θSampler(), 1. / (Concentration + 1)) };
-			auto [y, LongitudeRadius] = PolarToCartesian(1., std::acos(cosθ));
-			auto [x, z] = PolarToCartesian(LongitudeRadius, φ);
+			auto [y, LongitudeRadius] = Utilities::PolarToCartesian(1., std::acos(cosθ));
+			auto [x, z] = Utilities::PolarToCartesian(LongitudeRadius, φ);
 			auto Axis = AxisGenerator(Arguments...);
 			auto SupportAxis = glm::normalize(std::abs(Axis.x) > std::abs(Axis.y) ? glm::vec3{ Axis.z, 0, -Axis.x } : glm::vec3{ 0, -Axis.z, Axis.y });
 			return std::tuple{ glm::mat3{ glm::cross(Axis, SupportAxis), Axis, SupportAxis } * glm::vec3{ x, y, z }, PDFs::CosineWeighted(cosθ, Concentration) };
@@ -129,10 +150,42 @@ namespace BSDFs {
 	}
 }
 
-
-
-
-
+namespace ViewPlane {
+	auto ConfigureRayCaster(auto&& Camera, auto Width, auto Height) {
+		auto V = 2 * std::tan(Camera.HeightAngle / 2);
+		auto U = V * Width / Height;
+		auto w = -Camera.Look;
+		auto v = glm::normalize(Camera.Up - glm::dot(Camera.Up, w) * w);
+		auto u = glm::cross(v, w);
+		auto TransformationToWorldSpace = glm::translate(Camera.Position) * glm::mat4{
+				u.x, u.y, u.z, 0.f,
+				v.x, v.y, v.z, 0.f,
+				w.x, w.y, w.z, 0.f,
+				0.f, 0.f, 0.f, 1.f
+		};
+		return [=, LensSampler = Samplers::Planar::UniformDisk(Camera.Aperture / 2.)](auto x, auto y) mutable {
+			auto [Δu, Δv] = LensSampler();
+			auto NormalizedX = (x + 0.5) / Width - 0.5;
+			auto NormalizedY = 0.5 - (y + 0.5) / Height;
+			auto WorldSpaceCoordinates = TransformationToWorldSpace * glm::vec4{ U * NormalizedX, V * NormalizedY, -1., 1. };
+			auto FocalPoint = Camera.Position + Camera.FocalLength * glm::normalize(glm::vec3{ WorldSpaceCoordinates } - Camera.Position);
+			auto EyePoint = Camera.Position + Δu * u + Δv * v;
+			return std::tuple{ EyePoint, glm::normalize(FocalPoint - EyePoint) };
+		};
+	}
+	auto ConfigurePixelAggregator(auto&& RenderingEquation, auto&& RayCaster, auto SamplesPerPixel, auto σ) {
+		return [=](auto x, auto y) mutable {
+			auto [AccumulatedIntensity, ΣWeights] = std::tuple{ glm::vec3{ 0, 0, 0 }, 0. };
+			for (auto Sampler = Samplers::Planar::Gaussian(σ); auto _ : Range{ SamplesPerPixel }) {
+				auto [Δx, Δy, Weight] = Sampler();
+				auto [EyePoint, RayDirection] = RayCaster(x + Δx, y + Δy);
+				AccumulatedIntensity += Weight * RenderingEquation(EyePoint, RayDirection);
+				ΣWeights += Weight;
+			}
+			return AccumulatedIntensity / ΣWeights;
+		};
+	}
+}
 
 
 

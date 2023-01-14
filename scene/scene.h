@@ -35,7 +35,7 @@ public:
 
     bool getIntersection(const _Ray& ray, IntersectionInfo* I) const;
 
-private:
+public:
 
     BVH *m_bvh;
     std::vector<Object *> *_objects;

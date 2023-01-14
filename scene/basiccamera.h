@@ -11,7 +11,7 @@ public:
 
     virtual Eigen::Matrix4f getViewMatrix() const;
     virtual Eigen::Matrix4f getScaleMatrix() const;
-private:
+public:
     Eigen::Vector3f m_position;
     Eigen::Vector3f m_direction;
     Eigen::Vector3f m_up;
