@@ -4,16 +4,17 @@
 - Anti-aliased sampling (Gaussian kernel)
 - Finite-size lens (depth of field)
 - Multiple materials
- - emissive
- - diffuse
- - specular metal
- - specular glass
- - rough metal
- - frosted glass
- - plastic/porcelain (diffuse + specular/glossy reflection)
+1. emissive
+2. diffuse
+3. specular metal
+4. specular glass
+5. rough metal
+6. frosted glass
+7. plastic/porcelain (diffuse + specular/glossy reflection)
 - (Multiple) importance sampling for each material
- - Power heuristics
+1. Power heuristics
 - Fresnel for dielectrics
 - Russian roulette path selection/termination
 
 ![](a.png)
+![](b.png)
