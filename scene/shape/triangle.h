@@ -12,8 +12,8 @@ struct MaterialType {
     using SamplerSignature = auto(const glm::vec3&, const glm::vec3&)->std::tuple<glm::vec3, double>;
     using ƎSampler = std::function<SamplerSignature>;
 
-    glm::vec3 EmissiveIntensity;
-    bool IsDielectric = false;
+    glm::vec3 Le;
+    bool RequiresTransmission = false;
 
     mutable ƎBSDF BSDF = {};
     mutable ƎSampler Sampler = {};

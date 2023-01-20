@@ -113,19 +113,19 @@ void Triangle::setMaterial(const tinyobj::material_t &material)
     auto cTransmittance = glm::vec3{ material.transmittance[0], material.transmittance[1], material.transmittance[2] };
     auto cDiffuse = glm::vec3{ material.diffuse[0], material.diffuse[1], material.diffuse[2] };
 
-    Material.EmissiveIntensity = { material.emission[0], material.emission[1], material.emission[2] };
+    Material.Le = { material.emission[0], material.emission[1], material.emission[2] };
 
     if (material.illum == 5) {
         Material.BSDF = BSDFs::δ(cSpecular);
         Material.Sampler = Samplers::δ::Reflective;
     }
     else if (material.illum == 7) {
-        Material.IsDielectric = true;
+        Material.RequiresTransmission = true;
         Material.BSDF = BSDFs::δ(cSpecular, cTransmittance);
         Material.Sampler = Samplers::δ::Dielectric(static_cast<double>(material.ior));
     }
     else if (material.illum == 8) {
-        Material.IsDielectric = true;
+        Material.RequiresTransmission = true;
         Material.BSDF = BSDFs::δ(cSpecular, cTransmittance);
         Material.Sampler = Samplers::δ::Dielectric(static_cast<double>(material.ior), static_cast<double>(material.shininess));
     }

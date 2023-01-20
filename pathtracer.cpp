@@ -35,10 +35,10 @@ void PathTracer::traceScene(QRgb *imageData, const Scene& scene)
         .Up = glm::normalize(to_glm(scene.m_camera.m_up)),
         .HeightAngle = glm::radians(scene.m_camera.m_heightAngle),
         .FocalLength = 3.2,
-        .Aperture = 0.3
+        .Aperture = 0.
     };
     auto PixelAggregator = ViewPlane::ConfigurePixelAggregator(
-        [&](auto&& eye, auto&& dir) { return Ray::Trace(eye, dir, scene); },
+        [&](auto&& eye, auto&& dir) { return Ray::Trace(eye, dir, scene); }, 
         ViewPlane::ConfigureRayCaster(Camera, IMAGE_WIDTH, IMAGE_HEIGHT),
         25000,
         0.5
@@ -47,7 +47,7 @@ void PathTracer::traceScene(QRgb *imageData, const Scene& scene)
     std::vector<Vector3f> intensityValues(m_width * m_height);
     
     for(int y = 0; y < m_height; ++y) {
-        //#pragma omp parallel for
+        // #pragma omp parallel for
         for(int x = 0; x < m_width; ++x) {
             std::cout << "x = " << x << " y = " << y << std::endl;
             int offset = x + (y * m_width);
@@ -72,3 +72,8 @@ void PathTracer::toneMap(QRgb* imageData, std::vector<Vector3f>& intensityValues
             imageData[offset] = qRgb(r, g, b);
         }
 }
+
+
+
+//auto t = 0.5 * (RayDirection.y + 1.0);
+//auto bg = (1 - t) * glm::vec3{ 1, 1, 1 } + t * glm::vec3{ .5, .7, 1. };

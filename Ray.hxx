@@ -9,10 +9,11 @@ namespace Samplers {
 }
 
 namespace Samplers::Utilities {
-	inline auto Seeder = std::random_device{};
-	inline auto SequenceGenerator = std::mt19937{ Seeder() };
+	static thread_local auto Seeder = std::random_device{};
+	static thread_local auto SequenceGenerator = std::mt19937{ Seeder() };
 
 	auto PolarToCartesian(auto Radius, auto θ) { return std::array{ Radius * std::cos(θ), Radius * std::sin(θ) }; }
+	auto CosineWeightedPDF(auto cosθ, auto Concentration) { return (Concentration + 1) / (2 * std::numbers::pi) * std::pow(cosθ, Concentration); }
 }
 
 namespace Samplers::Standard {
@@ -43,12 +44,6 @@ namespace Samplers::Planar {
 	}
 }
 
-namespace Samplers::Hemispherical::PDFs {
-	auto CosineWeighted(auto cosθ, auto Concentration) {
-		return (Concentration + 1) / (2 * std::numbers::pi) * std::pow(cosθ, Concentration);
-	}
-}
-
 namespace Samplers::Hemispherical {
 	auto CosineWeighted(auto&& AxisGenerator, auto Concentration) { // might produce invalid ωi samples if the axis is not the surface normal
 		return [=, φSampler = Standard::Uniform(0., 1.), θSampler = Standard::Uniform(0., 1.)](auto&& ...Arguments) mutable {
@@ -57,12 +52,12 @@ namespace Samplers::Hemispherical {
 			auto [x, z] = Utilities::PolarToCartesian(LongitudeRadius, φ);
 			auto Axis = AxisGenerator(Arguments...);
 			auto SupportAxis = glm::normalize(std::abs(Axis.x) > std::abs(Axis.y) ? glm::vec3{ Axis.z, 0, -Axis.x } : glm::vec3{ 0, -Axis.z, Axis.y });
-			return std::tuple{ glm::mat3{ glm::cross(Axis, SupportAxis), Axis, SupportAxis } * glm::vec3{ x, y, z }, PDFs::CosineWeighted(cosθ, Concentration) };
+			return std::tuple{ glm::mat3{ glm::cross(Axis, SupportAxis), Axis, SupportAxis } * glm::vec3{ x, y, z }, Utilities::CosineWeightedPDF(cosθ, Concentration) };
 		};
 	}
 	auto CosineWeighted(auto Concentration) { return CosineWeighted([](auto&& SurfaceNormal, auto&&...) { return SurfaceNormal; }, Concentration); }
-	inline auto Uniform = CosineWeighted(0.);
-	inline auto DiffuseImportance = CosineWeighted(1.);
+	static thread_local auto Uniform = CosineWeighted(0.);
+	static thread_local auto DiffuseImportance = CosineWeighted(1.);
 	auto SpecularImportance(auto SpecularExponent) {
 		return [=, Sampler = CosineWeighted([](auto&& SurfaceNormal, auto&& ωo) { return Ray::Reflect(-ωo, SurfaceNormal); }, SpecularExponent)](auto&& SurfaceNormal, auto&& ωo) mutable {
 			if (auto [ωi, ProbabilityDensity] = Sampler(SurfaceNormal, ωo); glm::dot(ωi, SurfaceNormal) >= 0)
@@ -79,14 +74,14 @@ namespace Samplers::Hemispherical {
 					return std::tuple{ ωi, (std::pow(ProbabilityDensity, β) + std::pow(AuxiliaryPDF(ωi), β)) * ProbabilityDensity / (2 * std::pow(ProbabilityDensity, β)) };
 			};
 			if (RussianRoulette() < 0.5)
-				return PowerHeuristics(SpecularSampler, [&](auto&& ωi) { return PDFs::CosineWeighted(glm::dot(ωi, SurfaceNormal), 1.); });
-			return PowerHeuristics(DiffuseSampler, [&](auto&& ωi) { return PDFs::CosineWeighted(std::max(glm::dot(Ray::Reflect(-ωo, SurfaceNormal), ωi), 0.f), SpecularExponent); });
+				return PowerHeuristics(SpecularSampler, [&](auto&& ωi) { return Utilities::CosineWeightedPDF(glm::dot(ωi, SurfaceNormal), 1.); });
+			return PowerHeuristics(DiffuseSampler, [&](auto&& ωi) { return Utilities::CosineWeightedPDF(std::max(glm::dot(Ray::Reflect(-ωo, SurfaceNormal), ωi), 0.f), SpecularExponent); });
 		};
 	}
 }
 
 namespace Samplers::δ {
-	inline auto Reflective = [](auto&& SurfaceNormal, auto&& ωo) { return std::tuple{ Ray::Reflect(-ωo, SurfaceNormal), 1. }; };
+	static thread_local auto Reflective = [](auto&& SurfaceNormal, auto&& ωo) { return std::tuple{ Ray::Reflect(-ωo, SurfaceNormal), 1. }; };
 	auto Dielectric(auto η, auto&& NormalPerturbator) requires requires { { NormalPerturbator(glm::vec3{}) }->SubtypeOf<glm::vec3>; } {
 		return [=, RussianRoulette = Standard::Uniform(0., 1.)](auto&& SurfaceNormal, auto&& ωo) mutable {
 			auto [Reflectance, IncidentNormal, Incidentη, IsExteriorSurface] = [&] {
@@ -187,80 +182,23 @@ namespace ViewPlane {
 	}
 }
 
-
-
-
-
-
-
 namespace Ray {
 	inline auto RecursiveTracingProbability = 0.9;
 
 	auto Trace(auto&& EyePoint, auto&& RayDirection, auto&& ObjectRecords)->glm::vec3 {
-
-		static auto RussianRoulette = Samplers::Standard::Uniform(0., 1.);
-
-
 		if (auto&& [t, SurfaceNormal, SurfaceMaterial] = Intersect(EyePoint, RayDirection, ObjectRecords); t != NoIntersection) {
-			
-			if (glm::dot(RayDirection, SurfaceNormal) > 0 && !SurfaceMaterial.IsDielectric)
+			if (glm::dot(RayDirection, SurfaceNormal) > 0 && SurfaceMaterial.RequiresTransmission == false)
 				return { 0, 0, 0 };
-			
-			auto IntersectionPosition = EyePoint + t * RayDirection;
-			auto AccumulatedIntensity = SurfaceMaterial.EmissiveIntensity;
-
-			if (RussianRoulette() < RecursiveTracingProbability)
+			auto Lo = SurfaceMaterial.Le;
+			if (thread_local auto RussianRoulette = Samplers::Standard::Uniform(0., 1.); RussianRoulette() < RecursiveTracingProbability)
 				if (auto [ωi, ProbabilityDensity] = SurfaceMaterial.Sampler(SurfaceNormal, -RayDirection); ProbabilityDensity != Samplers::InvalidDensity) {
-
-					auto attenuate = SurfaceMaterial.BSDF(SurfaceNormal, ωi, -RayDirection);
-
-					auto v = attenuate * Trace(IntersectionPosition + SelfIntersectionDisplacement * ωi, ωi, ObjectRecords) * glm::dot(ωi, SurfaceNormal) / (ProbabilityDensity * RecursiveTracingProbability);
-
-					if (!std::isnan(v[0] + v[1] + v[2]))
-						AccumulatedIntensity += v;
+					auto IntersectionPosition = EyePoint + t * RayDirection + SelfIntersectionDisplacement * ωi;
+					auto [fr, Li, cosθ] = std::tuple{ SurfaceMaterial.BSDF(SurfaceNormal, ωi, -RayDirection), Trace(IntersectionPosition, ωi, ObjectRecords), glm::dot(ωi, SurfaceNormal) };
+					if (auto ReflectedRadiance = fr * Li * cosθ / (ProbabilityDensity * RecursiveTracingProbability); glm::any(glm::isnan(ReflectedRadiance)) == false)
+						Lo += ReflectedRadiance;
 				}
-
-
-			// if (AccumulatedIntensity.x < 0 || AccumulatedIntensity.y < 0 || AccumulatedIntensity.z < 0)
-				// std::cout << "?????????????????????????????????????????" << std::endl;
-
-			return AccumulatedIntensity;
-			
+			return Lo;
 		}
-
-
-		//auto t = 0.5 * (RayDirection.y + 1.0);
-		//auto bg = (1 - t) * glm::vec3{ 1, 1, 1 } + t * glm::vec3{ .5, .7, 1. };
-
-		auto bg = glm::vec3{ 0, 0, 0 };
-
-		return bg;
+		return { 0, 0, 0 };
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// MIS PDF: (DiffuseMIS + SpecMIS) / 2
