@@ -16,5 +16,6 @@
 - Fresnel for dielectrics
 - Russian roulette path selection/termination
 
+![](c.png)
 ![](a.png)
 ![](b.png)
